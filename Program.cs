@@ -150,7 +150,7 @@ namespace UserProfileCleanup
                 catch (UPC_CannotElevateError)
                 {
                     //Elevate() failed
-                    Output.WriteLine("[ERROR] Security: User does not have sufficient permssions to unload registry hives.");
+                    Output.WriteLine("[ERROR] Security: User does not have sufficient permissions to unload registry hives.");
                 }
                 catch (Exception ex)
                 {
@@ -238,7 +238,7 @@ namespace UserProfileCleanup
                 catch (UPC_CannotElevateError)
                 {
                     //Elevate() failed
-                    Output.WriteLine("[ERROR] Security: User does not have sufficient permssions to unload registry hives.");
+                    Output.WriteLine("[ERROR] Security: User does not have sufficient permissions to remove user profiles.");
                 }
             }
 
