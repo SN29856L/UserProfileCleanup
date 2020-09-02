@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -72,6 +72,8 @@ namespace UserProfileCleanup
             if (doingRemoveProfile)
                 doingUnloadHive = true;
 
+            doingList = !(doingUnloadHive | doingRemoveProfile);
+
             //Unload User Registry Hives
             if (doingList | doingUnloadHive)
             {
@@ -120,12 +122,12 @@ namespace UserProfileCleanup
                                         if (doingUnloadHive)
                                         {
                                             //Unload the Hive
-                                            Output.WriteLine("Unloading: " + hive);
+                                            Output.WriteLine("--> Unloading: " + hive);
 
                                             try
                                             {
                                                 int _result = RegUnLoadKey(HKEY_USERS, hive);
-                                                Console.WriteLine("Unloaded: " + hive + " Result: " + _result.ToString());
+                                                Output.WriteLine(4, "Unloaded: " + hive + " Result: " + _result.ToString());
                                             }
                                             catch
                                             {
@@ -162,66 +164,81 @@ namespace UserProfileCleanup
                 Output.WriteLine("");
                 Output.WriteLine("[User Profiles]");
 
-                ManagementPath WMIROOT_Win32_UserProfile = new ManagementPath() { Server = ".", NamespacePath = "root\\CIMV2", ClassName = "Win32_UserProfile" };
-                ManagementClass WMI_Win32_UserProfile = new ManagementClass(WMIROOT_Win32_UserProfile);
-                WMI_Win32_UserProfiles = WMI_Win32_UserProfile.GetInstances();
-
                 try
                 {
-                    foreach (ManagementObject item in WMI_Win32_UserProfiles)
+                    //Actions require elevation
+                    Elevate();
+
+                    ManagementPath WMIROOT_Win32_UserProfile = new ManagementPath() { Server = ".", NamespacePath = "root\\CIMV2", ClassName = "Win32_UserProfile" };
+                    ManagementClass WMI_Win32_UserProfile = new ManagementClass(WMIROOT_Win32_UserProfile);
+                    WMI_Win32_UserProfiles = WMI_Win32_UserProfile.GetInstances();
+
+                    try
                     {
-                        try
+                        foreach (ManagementObject item in WMI_Win32_UserProfiles)
                         {
-                            string _LocalPath = (string)item.Properties["LocalPath"].Value;
-                            string _SID = (string)item.Properties["SID"].Value;
-                            bool _Loaded = (bool)item.Properties["Loaded"].Value;
-
-                            Output.WriteLine("Found User Profile: [" + _LocalPath + "]");
-                            Output.WriteLine(15, "SID: [" + _SID + "]");
-
-                            if ((_SID.Length > MIN_USER_SID_LENGTH) && (_SID.StartsWith(S_UserSIDPrefix, StringComparison.InvariantCultureIgnoreCase)))
+                            try
                             {
-                                //Normal User Profile
-                                if (_Loaded || LoggedOnSIDs.Contains(_SID))
+                                string _LocalPath = (string)item.Properties["LocalPath"].Value;
+                                string _SID = (string)item.Properties["SID"].Value;
+                                bool _Loaded = (bool)item.Properties["Loaded"].Value;
+
+                                Output.WriteLine("Found User Profile: [" + _LocalPath + "]");
+                                Output.WriteLine(15, "SID: [" + _SID + "]");
+
+                                if ((_SID.Length > MIN_USER_SID_LENGTH) && (_SID.StartsWith(S_UserSIDPrefix, StringComparison.InvariantCultureIgnoreCase)))
                                 {
-                                    Output.WriteLine(15, "User profile is currently loaded.");
-                                }
-                                else
-                                {
-                                    //Could add further criteria here
-                                    Output.WriteLine(15, "Valid for removal.");
-                                    if (doingRemoveProfile)
+                                    //Normal User Profile
+                                    if (_Loaded || LoggedOnSIDs.Contains(_SID))
                                     {
-                                        Output.WriteLine("--> Removing User Profile: [" + _LocalPath + "]");
-                                        try
+                                        Output.WriteLine("--> User profile is currently loaded.");
+                                    }
+                                    else
+                                    {
+                                        //Could add further criteria here
+                                        Output.WriteLine("--> Valid for removal.");
+                                        if (doingRemoveProfile)
                                         {
-                                            item.Delete();
-                                            Output.WriteLine(4, "Success");
-                                        }
-                                        catch
-                                        {
-                                            Output.WriteLine("---> [ERROR] Removing User Profile: ");
+                                            Output.WriteLine("--> Removing User Profile: [" + _LocalPath + "]");
+                                            try
+                                            {
+                                                item.Delete();
+                                                Output.WriteLine(4, "Success");
+                                            }
+                                            catch (COMException)
+                                            {
+                                                Output.WriteLine("---> [ERROR] Removing User Profile: Try running as Administrator (Elevated).");
+                                            }
+                                            catch (Exception ex)
+                                            {
+                                                Output.WriteLine("---> [ERROR] Removing User Profile: " + ex.Message);
+                                            }
                                         }
                                     }
                                 }
+                                else
+                                {
+                                    //Non-User Profile (System, Service, etc.)
+                                    Output.WriteLine("--> Not valid for removal.");
+                                }
                             }
-                            else
+                            catch
                             {
-                                //Non-User Profile (System, Service, etc.)
-                                Output.WriteLine(15, "Not valid for removal.");
+                                Output.WriteLine("---> [ERROR] Removing User Profile: ");
                             }
-                        }
-                        catch
-                        {
-                            Output.WriteLine("---> [ERROR] Removing User Profile: ");
-                        }
 
-                        Output.WriteLine("");
+                            Output.WriteLine("");
+                        }
+                    }
+                    catch
+                    {
+                        Output.WriteLine("---> [ERROR] Removing User Profiles: ");
                     }
                 }
-                catch
+                catch (UPC_CannotElevateError)
                 {
-                    Output.WriteLine("---> [ERROR] Removing User Profiles: ");
+                    //Elevate() failed
+                    Output.WriteLine("[ERROR] Security: User does not have sufficient permssions to unload registry hives.");
                 }
             }
 
