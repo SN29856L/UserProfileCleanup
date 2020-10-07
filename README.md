@@ -1,4 +1,4 @@
-# UserProfileCleanup
+# UserProfileRemover
  Unload \ Remove User Profiles
 
 ### Command line switches:
