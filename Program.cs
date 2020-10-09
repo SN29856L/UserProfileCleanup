@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32;
 
-namespace UserProfileCleanup
+namespace UserProfileRemover
 {
     class Program
     {
